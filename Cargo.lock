@@ -3510,7 +3510,7 @@ dependencies = [
  "sc-cli",
  "sc-client-api",
  "sc-consensus",
- "sc-consensus-aura",
+ "sc-consensus-babe",
  "sc-executor",
  "sc-finality-grandpa",
  "sc-keystore",
@@ -3523,7 +3523,7 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
@@ -3546,10 +3546,13 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "funty",
  "hex-literal",
- "pallet-aura",
+ "pallet-babe",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-staking-reward-curve",
  "pallet-sudo",
  "pallet-template",
  "pallet-timestamp",
@@ -3559,12 +3562,13 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-block-builder",
- "sp-consensus-aura",
+ "sp-consensus-babe",
  "sp-core",
  "sp-inherents",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
+ "sp-staking",
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
@@ -3709,24 +3713,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-aura"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-session",
- "pallet-timestamp",
- "parity-scale-codec",
- "serde",
- "sp-application-crypto",
- "sp-consensus-aura",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
-]
-
-[[package]]
 name = "pallet-authorship"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
@@ -3739,6 +3725,30 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-babe"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-authorship",
+ "pallet-session",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "serde",
+ "sp-application-crypto",
+ "sp-consensus-babe",
+ "sp-consensus-vrf",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -3807,6 +3817,37 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
+]
+
+[[package]]
+name = "pallet-staking"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-authorship",
+ "pallet-session",
+ "parity-scale-codec",
+ "serde",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+ "static_assertions",
+]
+
+[[package]]
+name = "pallet-staking-reward-curve"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -5196,38 +5237,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-aura"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
-dependencies = [
- "derive_more",
- "futures 0.3.12",
- "futures-timer 3.0.2",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus-slots",
- "sc-telemetry",
- "sp-api",
- "sp-application-crypto",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-aura",
- "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-runtime",
- "sp-timestamp",
- "sp-version",
- "substrate-prometheus-endpoint",
-]
-
-[[package]]
 name = "sc-consensus-babe"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
@@ -6380,21 +6389,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-consensus-aura"
-version = "0.9.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
-dependencies = [
- "parity-scale-codec",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus-slots",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
-]
-
-[[package]]
 name = "sp-consensus-babe"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
@@ -6589,6 +6583,30 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-externalities",
+]
+
+[[package]]
+name = "sp-npos-elections"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-npos-elections-compact",
+ "sp-std",
+]
+
+[[package]]
+name = "sp-npos-elections-compact"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -8343,7 +8361,7 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "pallet-babe"
+name = "pallet-aura"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
 
@@ -8403,16 +8421,6 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
 
 [[patch.unused]]
-name = "pallet-staking"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
-
-[[patch.unused]]
-name = "pallet-staking-reward-curve"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
-
-[[patch.unused]]
 name = "pallet-tips"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
@@ -8428,6 +8436,11 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
 
 [[patch.unused]]
+name = "sc-consensus-aura"
+version = "0.9.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+
+[[patch.unused]]
 name = "sc-consensus-babe-rpc"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
@@ -8439,5 +8452,10 @@ source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01c
 
 [[patch.unused]]
 name = "sc-finality-grandpa-rpc"
+version = "0.9.0"
+source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
+
+[[patch.unused]]
+name = "sp-consensus-aura"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=master#7d2de01cd35041cc1c9c5893ddb30126cd11accd"
