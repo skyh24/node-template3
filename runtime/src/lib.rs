@@ -16,11 +16,11 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 };
 use sp_runtime::traits::{
-	BlakeTwo256, AccountIdLookup, Block as BlockT,
+	BlakeTwo256, AccountIdLookup, Block as BlockT, AccountIdConversion,
 	Zero, Verify, IdentifyAccount, OpaqueKeys, NumberFor,
 };
 use sp_api::impl_runtime_apis;
-use frame_system::{EnsureRoot, EnsureOneOf};
+use frame_system::{EnsureRoot, EnsureOneOf, RawOrigin};
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use pallet_grandpa::fg_primitives;
 
@@ -38,7 +38,10 @@ pub use pallet_balances::Call as BalancesCall;
 pub use sp_runtime::{Percent, Permill, Perbill};
 pub use frame_support::{
 	construct_runtime, parameter_types, StorageValue,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier},
+	traits::{
+		EnsureOrigin, KeyOwnerProofSystem,
+		Randomness, LockIdentifier
+	},
 	weights::{
 		Weight, IdentityFee, DispatchClass,
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -81,13 +84,6 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-impl_opaque_keys! {
-	pub struct SessionKeys {
-		pub babe: Babe,
-		pub grandpa: Grandpa,
-	}
-}
-
 type MoreThanHalfCouncil = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
@@ -99,6 +95,24 @@ type ApproveOrigin = EnsureOneOf<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 >;
+
+impl_opaque_keys! {
+	pub struct SessionKeys {
+		pub babe: Babe,
+		pub grandpa: Grandpa,
+	}
+}
+
+// Module accounts of runtime
+parameter_types! {
+	pub const TreasuryModuleId: ModuleId = ModuleId(*b"bdt/trsy");
+}
+
+pub fn get_all_module_accounts() -> Vec<AccountId> {
+	vec![
+		TreasuryModuleId::get().into_account(),
+	]
+}
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -371,7 +385,6 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-    pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = DOLLARS;
 	pub const SpendPeriod: BlockNumber = DAYS;
@@ -579,6 +592,26 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+parameter_type_with_key! {
+	pub ExistentialDeposits: |currency_id: CurrencyId| -> Balance {
+		Zero::zero()
+	};
+}
+
+parameter_types! {
+	pub TreasuryAccount: AccountId = TreasuryModuleId::get().into_account();
+}
+
+impl orml_tokens::Config for Runtime {
+	type Event = Event;
+	type Amount = Amount;
+	type Balance = Balance;
+	type CurrencyId = CurrencyId;
+	type ExistentialDeposits = ExistentialDeposits;
+	type OnDust = orml_tokens::TransferDust<Runtime, TreasuryAccount>;
+	type WeightInfo = ();
+}
+
 parameter_types! {
 	pub const GetNativeCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BDT);
 	pub const GetStableCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BUSD);
@@ -593,37 +626,59 @@ impl orml_currencies::Config for Runtime {
 	type WeightInfo = ();
 }
 
-parameter_type_with_key! {
-	pub ExistentialDeposits: |currency_id: CurrencyId| -> Balance {
-		Zero::zero()
-	};
+
+pub struct EnsureRootOrTreasury;
+impl EnsureOrigin<Origin> for EnsureRootOrTreasury {
+	type Success = AccountId;
+
+	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		Into::<Result<RawOrigin<AccountId>, Origin>>::into(o).and_then(|o| match o {
+			RawOrigin::Root => Ok(TreasuryModuleId::get().into_account()),
+			RawOrigin::Signed(caller) => {
+				if caller == TreasuryModuleId::get().into_account() {
+					Ok(caller)
+				} else {
+					Err(Origin::from(Some(caller)))
+				}
+			}
+			r => Err(Origin::from(r)),
+		})
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin {
+		Origin::from(RawOrigin::Signed(Default::default()))
+	}
 }
 
 parameter_types! {
-	//pub TreasuryAccount: AccountId = TreasuryModuleId::get().into_account();
+	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
 }
 
-impl orml_tokens::Config for Runtime {
+impl orml_vesting::Config for Runtime {
 	type Event = Event;
-	type Amount = Amount;
-	type Balance = Balance;
-	type CurrencyId = CurrencyId;
-	type ExistentialDeposits = ExistentialDeposits;
-	type OnDust = ();//orml_tokens::TransferDust<Runtime, TreasuryAccount>;
+	type Currency = pallet_balances::Module<Runtime>;
+	type MinVestedTransfer = MinVestedTransfer;
+	type VestedTransferOrigin = EnsureRootOrTreasury;
 	type WeightInfo = ();
 }
 
 // parameter_types! {
-// 	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+// 	pub StableCurrencyFixedPrice: Price = Price::saturating_from_rational(1, 1);
 // }
 //
-// impl orml_vesting::Config for Runtime {
+// impl pallet_prices::Config for Runtime {
 // 	type Event = Event;
-// 	type Currency = pallet_balances::Module<Runtime>;
-// 	type MinVestedTransfer = MinVestedTransfer;
-// 	type VestedTransferOrigin = ();// EnsureRootOrTreasury;
-// 	type WeightInfo = ();
+// 	type Source = AggregatedDataProvider;
+// 	type GetStableCurrencyId = GetStableCurrencyId;
+// 	type StableCurrencyFixedPrice = StableCurrencyFixedPrice;
+// 	type GetStakingCurrencyId = GetStakingCurrencyId;
+// 	type GetLiquidCurrencyId = GetLiquidCurrencyId;
+// 	type LockOrigin = EnsureRootOrTwoThirdsGeneralCouncil;
+// 	type LiquidStakingExchangeRateProvider = LiquidStakingExchangeRateProvider;
+// 	type WeightInfo = weights::prices::WeightInfo<Runtime>;
 // }
+
 
 /// Configure the pallet template in pallets/template.
 impl template::Config for Runtime {
@@ -672,7 +727,7 @@ construct_runtime!(
 
 		Currencies: orml_currencies::{Module, Call, Event<T>},
 		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
-		//Vesting: orml_vesting::{Module, Storage, Call, Event<T>, Config<T>},
+		Vesting: orml_vesting::{Module, Storage, Call, Event<T>, Config<T>},
 
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 	}

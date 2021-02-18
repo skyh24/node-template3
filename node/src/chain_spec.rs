@@ -6,7 +6,7 @@ use node_template_runtime::{
 	BalancesConfig, BabeConfig, GrandpaConfig,
 	IndicesConfig, SessionConfig, StakingConfig,
 	CouncilConfig, TechnicalCommitteeConfig,
-	TokenSymbol, CurrencyId, TokensConfig
+	TokenSymbol, CurrencyId, TokensConfig, VestingConfig,
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -205,5 +205,6 @@ fn testnet_genesis(
 				(root_key.clone(), CurrencyId::Token(TokenSymbol::DOT), INITIAL_BALANCE),
 			],
 		}),
+		orml_vesting: Some(VestingConfig { vesting: vec![] }),
 	}
 }

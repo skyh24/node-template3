@@ -68,7 +68,8 @@ pub enum TokenSymbol {
     BDT = 1,
     BUSD = 2,
     BBTC = 3,
-    BDOT = 4,
+    BETH = 4,
+    BDOT = 5,
 }
 
 impl TryFrom<u8> for TokenSymbol {
@@ -80,7 +81,8 @@ impl TryFrom<u8> for TokenSymbol {
             1 => Ok(TokenSymbol::BDT),
             2 => Ok(TokenSymbol::BUSD),
             3 => Ok(TokenSymbol::BBTC),
-            4 => Ok(TokenSymbol::BDOT),
+            4 => Ok(TokenSymbol::BETH),
+            5 => Ok(TokenSymbol::BDOT),
             _ => Err(()),
         }
     }
