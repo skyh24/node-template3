@@ -3,8 +3,9 @@ use node_template_runtime::{
 	AccountId, WASM_BINARY, Signature,
 	SessionKeys, StakerStatus, DOLLARS,
 	GenesisConfig, SystemConfig, SudoConfig,
-	BalancesConfig,
-	SessionConfig, StakingConfig,
+	BalancesConfig, BabeConfig, GrandpaConfig,
+	IndicesConfig, SessionConfig, StakingConfig,
+	CouncilConfig, TechnicalCommitteeConfig,
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -166,6 +167,7 @@ fn testnet_genesis(
 		}),
 		pallet_babe: Some(Default::default()),
 		pallet_grandpa: Some(Default::default()),
+		pallet_indices: Some(IndicesConfig { indices: vec![] }),
 		pallet_session: Some(SessionConfig {
 			keys: initial_authorities.iter().map(|x| {
 				(x.0.clone(),
@@ -186,6 +188,15 @@ fn testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		}),
+		pallet_collective_Instance1: Some(CouncilConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		pallet_collective_Instance2: Some(TechnicalCommitteeConfig {
+			members: vec![],
+			phantom: Default::default(),
+		}),
+		pallet_membership_Instance1: Some(Default::default()),
 
 	}
 }
