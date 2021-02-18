@@ -61,6 +61,12 @@ sp-staking = { version = "3.0.0", default-features = false }
 sp-transaction-pool = { version = "3.0.0", default-features = false }
 sp-version = { version = "3.0.0", default-features = false }
 
+#orml
+orml-currencies = {path = "../orml/currencies", default-features = false}
+orml-tokens = {path = "../orml/tokens", default-features = false}
+orml-vesting = {path = "../orml/vesting", default-features = false}
+orml-traits = {path = "../orml/traits", default-features = false}
+
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "3.0.0", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", default-features = false }

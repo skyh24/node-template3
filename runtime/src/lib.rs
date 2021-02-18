@@ -16,8 +16,8 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 };
 use sp_runtime::traits::{
-	BlakeTwo256, Block as BlockT,
-	AccountIdLookup, Verify, IdentifyAccount, OpaqueKeys, NumberFor,
+	BlakeTwo256, AccountIdLookup, Block as BlockT,
+	Zero, Verify, IdentifyAccount, OpaqueKeys, NumberFor,
 };
 use sp_api::impl_runtime_apis;
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -46,6 +46,12 @@ pub use frame_support::{
 };
 use pallet_transaction_payment::CurrencyAdapter;
 use pallet_session::historical as session_historical;
+
+use orml_currencies::{BasicCurrencyAdapter, Currency};
+use orml_traits::{
+	create_median_value_data_provider, parameter_type_with_key,
+	DataFeeder, DataProviderExtended
+};
 
 /// Import the template pallet.
 pub use template;
@@ -573,6 +579,52 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+parameter_types! {
+	pub const GetNativeCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BDT);
+	pub const GetStableCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BUSD);
+	pub const GetBDOTCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BDOT);
+}
+
+impl orml_currencies::Config for Runtime {
+	type Event = Event;
+	type MultiCurrency = Tokens;
+	type NativeCurrency = BasicCurrencyAdapter<Runtime, Balances, Amount, BlockNumber>;
+	type GetNativeCurrencyId = GetNativeCurrencyId;
+	type WeightInfo = ();
+}
+
+parameter_type_with_key! {
+	pub ExistentialDeposits: |currency_id: CurrencyId| -> Balance {
+		Zero::zero()
+	};
+}
+
+parameter_types! {
+	//pub TreasuryAccount: AccountId = TreasuryModuleId::get().into_account();
+}
+
+impl orml_tokens::Config for Runtime {
+	type Event = Event;
+	type Amount = Amount;
+	type Balance = Balance;
+	type CurrencyId = CurrencyId;
+	type ExistentialDeposits = ExistentialDeposits;
+	type OnDust = ();//orml_tokens::TransferDust<Runtime, TreasuryAccount>;
+	type WeightInfo = ();
+}
+
+// parameter_types! {
+// 	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+// }
+//
+// impl orml_vesting::Config for Runtime {
+// 	type Event = Event;
+// 	type Currency = pallet_balances::Module<Runtime>;
+// 	type MinVestedTransfer = MinVestedTransfer;
+// 	type VestedTransferOrigin = ();// EnsureRootOrTreasury;
+// 	type WeightInfo = ();
+// }
+
 /// Configure the pallet template in pallets/template.
 impl template::Config for Runtime {
 	type Event = Event;
@@ -618,7 +670,10 @@ construct_runtime!(
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 		Utility: pallet_utility::{Module, Call, Event},
 
-		// Include the custom logic from the template pallet in the runtime.
+		Currencies: orml_currencies::{Module, Call, Event<T>},
+		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
+		//Vesting: orml_vesting::{Module, Storage, Call, Event<T>, Config<T>},
+
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 	}
 );

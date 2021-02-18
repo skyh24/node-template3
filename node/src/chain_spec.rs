@@ -6,6 +6,7 @@ use node_template_runtime::{
 	BalancesConfig, BabeConfig, GrandpaConfig,
 	IndicesConfig, SessionConfig, StakingConfig,
 	CouncilConfig, TechnicalCommitteeConfig,
+	TokenSymbol, CurrencyId, TokensConfig
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -199,5 +200,10 @@ fn testnet_genesis(
 		pallet_membership_Instance1: Some(Default::default()),
 		pallet_elections_phragmen: Some(Default::default()),
 		pallet_treasury: Some(Default::default()),
+		orml_tokens: Some(TokensConfig {
+			endowed_accounts: vec![
+				(root_key.clone(), CurrencyId::Token(TokenSymbol::DOT), INITIAL_BALANCE),
+			],
+		}),
 	}
 }
