@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// use orml_traits::{DataFeeder, DataProvider};
+
 pub use pallet::*;
 
 #[cfg(test)]
@@ -16,6 +18,9 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		//type Source: DataProvider<CurrencyId, Price> + DataFeeder<CurrencyId, Price, Self::AccountId>;
+
 	}
 
 	#[pallet::pallet]

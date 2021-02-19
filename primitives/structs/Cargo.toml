@@ -1,0 +1,25 @@
+[package]
+name = "bp-structs"
+version = "3.0.0"
+authors = ["skyh24 <skyhighfeng@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+funty = { version = "=1.1.0", default-features = false } # https://github.com/bitvecto-rs/bitvec/issues/105
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+
+sp-std = { version = "3.0.0", default-features = false }
+sp-runtime = { version = "3.0.0", default-features = false }
+
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "serde",
+    "sp-std/std",
+    "sp-runtime/std",
+]

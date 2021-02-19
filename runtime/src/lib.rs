@@ -10,24 +10,33 @@ use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
-	ApplyExtrinsicResult, ModuleId,  MultiSignature,
+	ApplyExtrinsicResult, ModuleId,
 	create_runtime_str, impl_opaque_keys,
 	generic, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 };
 use sp_runtime::traits::{
 	BlakeTwo256, AccountIdLookup, Block as BlockT, AccountIdConversion,
-	Zero, Verify, IdentifyAccount, OpaqueKeys, NumberFor,
+	Zero, IdentifyAccount, OpaqueKeys, NumberFor,
 };
 use sp_api::impl_runtime_apis;
 use frame_system::{EnsureRoot, EnsureOneOf, RawOrigin};
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use pallet_grandpa::fg_primitives;
+use pallet_transaction_payment::CurrencyAdapter;
+use pallet_session::historical as session_historical;
+
+use orml_currencies::{BasicCurrencyAdapter, Currency};
+use orml_traits::{
+    create_median_value_data_provider, parameter_type_with_key,
+    DataFeeder, DataProviderExtended
+};
 
 use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use static_assertions::const_assert;
+use structs::{TokenSymbol, CurrencyId};
 
 // A few exports that help ease life for downstream crates.
 #[cfg(any(feature = "std", test))]
@@ -47,16 +56,7 @@ pub use frame_support::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
 	},
 };
-use pallet_transaction_payment::CurrencyAdapter;
-use pallet_session::historical as session_historical;
 
-use orml_currencies::{BasicCurrencyAdapter, Currency};
-use orml_traits::{
-	create_median_value_data_provider, parameter_type_with_key,
-	DataFeeder, DataProviderExtended
-};
-
-/// Import the template pallet.
 pub use template;
 
 pub mod common;
@@ -664,12 +664,31 @@ impl orml_vesting::Config for Runtime {
 }
 
 // parameter_types! {
+// 	pub const MinimumCount: u32 = 1;
+// 	pub const ExpiresIn: Moment = 1000 * 60 * 60; // 60 mins
+// 	pub ZeroAccountId: AccountId = AccountId::from([0u8; 32]);
+// }
+//
+// type OracleDataProvider = orml_oracle::Instance1;
+// impl orml_oracle::Config<OracleDataProvider> for Runtime {
+// 	type Event = Event;
+// 	type RootOperatorAccountId = ZeroAccountId;
+// 	type CombineData = orml_oracle::DefaultCombineData<Runtime, MinimumCount, ExpiresIn, OracleDataProvider>;
+// 	type OracleKey = CurrencyId;
+// 	type OracleValue = Price;
+// 	type Time = Timestamp;
+// 	type OnNewData = ();
+// 	type WeightInfo = ();
+// }
+
+
+// parameter_types! {
 // 	pub StableCurrencyFixedPrice: Price = Price::saturating_from_rational(1, 1);
 // }
 //
 // impl pallet_prices::Config for Runtime {
 // 	type Event = Event;
-// 	type Source = AggregatedDataProvider;
+// 	type Source = Oracle;
 // 	type GetStableCurrencyId = GetStableCurrencyId;
 // 	type StableCurrencyFixedPrice = StableCurrencyFixedPrice;
 // 	type GetStakingCurrencyId = GetStakingCurrencyId;
@@ -728,6 +747,8 @@ construct_runtime!(
 		Currencies: orml_currencies::{Module, Call, Event<T>},
 		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
 		Vesting: orml_vesting::{Module, Storage, Call, Event<T>, Config<T>},
+
+		//Oracle: orml_oracle::<Instance1>::{Module, Storage, Call, Config<T>, Event<T>},
 
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 	}

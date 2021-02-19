@@ -6,13 +6,14 @@ use node_template_runtime::{
 	BalancesConfig, BabeConfig, GrandpaConfig,
 	IndicesConfig, SessionConfig, StakingConfig,
 	CouncilConfig, TechnicalCommitteeConfig,
-	TokenSymbol, CurrencyId, TokensConfig, VestingConfig,
+	TokensConfig, VestingConfig,
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{Perbill};
 use sp_runtime::traits::{Verify, IdentifyAccount};
 use sc_service::ChainType;
+use structs::{TokenSymbol, CurrencyId};
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

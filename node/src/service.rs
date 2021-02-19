@@ -198,6 +198,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			network_status_sinks,
 			system_rpc_tx,
 			config,
+			telemetry_span:None,
 		},
 	)?;
 
@@ -381,6 +382,7 @@ pub fn new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
 		network,
 		network_status_sinks,
 		system_rpc_tx,
+		telemetry_span:None,
 	})?;
 
 	network_starter.start_network();

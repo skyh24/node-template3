@@ -62,9 +62,10 @@ sp-transaction-pool = { version = "3.0.0", default-features = false }
 sp-version = { version = "3.0.0", default-features = false }
 
 #orml
-orml-currencies = {path = "../orml/currencies", default-features = false}
 orml-tokens = {path = "../orml/tokens", default-features = false}
+orml-currencies = {path = "../orml/currencies", default-features = false}
 orml-vesting = {path = "../orml/vesting", default-features = false}
+orml-oracle = {path = "../orml/oracle", default-features = false}
 orml-traits = {path = "../orml/traits", default-features = false}
 
 # Used for the node template's RPCs
@@ -76,6 +77,10 @@ frame-benchmarking = { version = "3.0.0", default-features = false, optional = t
 frame-system-benchmarking = { version = "3.0.0", default-features = false, optional = true }
 hex-literal = { version = "0.3.1", optional = true }
 
+traits = { version = "3.0.0", default-features = false, package = "bp-traits", path = "../primitives/traits"}
+structs = { version = "3.0.0", default-features = false, package = "bp-structs", path = "../primitives/structs"}
+
+prices = { version = "3.0.0", default-features = false, package = "pallet-prices", path = "../pallets/prices" }
 template = { version = "3.0.0", default-features = false, package = "pallet-template", path = "../pallets/template" }
 
 [build-dependencies]

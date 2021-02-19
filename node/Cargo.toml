@@ -17,6 +17,8 @@ name = "node-template"
 
 [dependencies]
 structopt = "0.3.8"
+structs = { version = "3.0.0", default-features = false, package = "bp-structs", path = "../primitives/structs"}
+
 
 sc-cli = { version = "0.9.0", features = ["wasmtime"] }
 sc-executor = { version = "0.9.0", features = ["wasmtime"] }
