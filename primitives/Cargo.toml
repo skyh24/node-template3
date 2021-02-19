@@ -1,5 +1,5 @@
 [package]
-name = "bp-structs"
+name = "primitives"
 version = "3.0.0"
 authors = ["skyh24 <skyhighfeng@gmail.com>"]
 edition = "2018"
@@ -13,7 +13,6 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 sp-std = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
-
 
 [features]
 default = ["std"]

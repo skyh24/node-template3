@@ -17,7 +17,7 @@ name = "node-template"
 
 [dependencies]
 structopt = "0.3.8"
-structs = { version = "3.0.0", default-features = false, package = "bp-structs", path = "../primitives/structs"}
+primitives = { version = "3.0.0", default-features = false, path = "../primitives" }
 
 
 sc-cli = { version = "0.9.0", features = ["wasmtime"] }
@@ -54,7 +54,7 @@ pallet-transaction-payment-rpc = "3.0.0"
 frame-benchmarking = "3.0.0"
 frame-benchmarking-cli = "3.0.0"
 
-node-template-runtime = { version = "3.0.0", path = "../runtime" }
+template-runtime = { version = "3.0.0", path = "../runtime" }
 
 [build-dependencies]
 substrate-build-script-utils = "3.0.0"
@@ -62,5 +62,5 @@ substrate-build-script-utils = "3.0.0"
 [features]
 default = []
 runtime-benchmarks = [
-	"node-template-runtime/runtime-benchmarks",
+	"template-runtime/runtime-benchmarks",
 ]

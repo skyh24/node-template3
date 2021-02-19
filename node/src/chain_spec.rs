@@ -1,19 +1,19 @@
 use sp_core::{Pair, Public, sr25519};
-use node_template_runtime::{
+use template_runtime::{
 	AccountId, WASM_BINARY, Signature,
 	SessionKeys, StakerStatus, DOLLARS,
 	GenesisConfig, SystemConfig, SudoConfig,
-	BalancesConfig, BabeConfig, GrandpaConfig,
+	BalancesConfig, TechnicalMembershipConfig,
 	IndicesConfig, SessionConfig, StakingConfig,
 	CouncilConfig, TechnicalCommitteeConfig,
-	TokensConfig, VestingConfig,
+	TokensConfig, VestingConfig, OracleConfig,
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{Perbill};
 use sp_runtime::traits::{Verify, IdentifyAccount};
 use sc_service::ChainType;
-use structs::{TokenSymbol, CurrencyId};
+use primitives::{TokenSymbol, CurrencyId};
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -198,7 +198,10 @@ fn testnet_genesis(
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		pallet_membership_Instance1: Some(Default::default()),
+		pallet_membership_Instance1: Some(TechnicalMembershipConfig {
+			members: vec![root_key.clone()],
+			phantom: Default::default(),
+		}),
 		pallet_elections_phragmen: Some(Default::default()),
 		pallet_treasury: Some(Default::default()),
 		orml_tokens: Some(TokensConfig {
@@ -207,5 +210,9 @@ fn testnet_genesis(
 			],
 		}),
 		orml_vesting: Some(VestingConfig { vesting: vec![] }),
+		orml_oracle_Instance1: Some(OracleConfig {
+			members: vec![root_key.clone()].into(), // initialized by OperatorMembership
+			phantom: Default::default(),
+		}),
 	}
 }

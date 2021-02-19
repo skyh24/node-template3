@@ -14,6 +14,7 @@ use sp_runtime::{
 	create_runtime_str, impl_opaque_keys,
 	generic, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
+	FixedPointNumber,
 };
 use sp_runtime::traits::{
 	BlakeTwo256, AccountIdLookup, Block as BlockT, AccountIdConversion,
@@ -36,7 +37,8 @@ use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use static_assertions::const_assert;
-use structs::{TokenSymbol, CurrencyId};
+use primitives::{TokenSymbol, CurrencyId, Price};
+
 
 // A few exports that help ease life for downstream crates.
 #[cfg(any(feature = "std", test))]
@@ -95,6 +97,7 @@ type ApproveOrigin = EnsureOneOf<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 >;
+
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -663,40 +666,50 @@ impl orml_vesting::Config for Runtime {
 	type WeightInfo = ();
 }
 
-// parameter_types! {
-// 	pub const MinimumCount: u32 = 1;
-// 	pub const ExpiresIn: Moment = 1000 * 60 * 60; // 60 mins
-// 	pub ZeroAccountId: AccountId = AccountId::from([0u8; 32]);
-// }
-//
-// type OracleDataProvider = orml_oracle::Instance1;
-// impl orml_oracle::Config<OracleDataProvider> for Runtime {
-// 	type Event = Event;
-// 	type RootOperatorAccountId = ZeroAccountId;
-// 	type CombineData = orml_oracle::DefaultCombineData<Runtime, MinimumCount, ExpiresIn, OracleDataProvider>;
-// 	type OracleKey = CurrencyId;
-// 	type OracleValue = Price;
-// 	type Time = Timestamp;
-// 	type OnNewData = ();
-// 	type WeightInfo = ();
-// }
+parameter_types! {
+	pub const MinimumCount: u32 = 1;
+	pub const ExpiresIn: Moment = 1000 * 60 * 60; // 60 mins
+	pub ZeroAccountId: AccountId = AccountId::from([0u8; 32]);
+}
 
+type OracleDataProvider = orml_oracle::Instance1;
+impl orml_oracle::Config<OracleDataProvider> for Runtime {
+	type Event = Event;
+	type RootOperatorAccountId = ZeroAccountId;
+	type CombineData = orml_oracle::DefaultCombineData<Runtime, MinimumCount, ExpiresIn, OracleDataProvider>;
+	type OracleKey = CurrencyId;
+	type OracleValue = Price;
+	type Time = Timestamp;
+	type OnNewData = ();
+	type WeightInfo = ();
+}
 
-// parameter_types! {
-// 	pub StableCurrencyFixedPrice: Price = Price::saturating_from_rational(1, 1);
-// }
-//
-// impl pallet_prices::Config for Runtime {
-// 	type Event = Event;
-// 	type Source = Oracle;
-// 	type GetStableCurrencyId = GetStableCurrencyId;
-// 	type StableCurrencyFixedPrice = StableCurrencyFixedPrice;
-// 	type GetStakingCurrencyId = GetStakingCurrencyId;
-// 	type GetLiquidCurrencyId = GetLiquidCurrencyId;
-// 	type LockOrigin = EnsureRootOrTwoThirdsGeneralCouncil;
-// 	type LiquidStakingExchangeRateProvider = LiquidStakingExchangeRateProvider;
-// 	type WeightInfo = weights::prices::WeightInfo<Runtime>;
-// }
+// pub type TimeStampedPrice = orml_oracle::TimestampedValue<Price, Moment>;
+// create_median_value_data_provider!(
+// 	AggregatedDataProvider,
+// 	CurrencyId,
+// 	Price,
+// 	TimeStampedPrice,
+// 	[Oracle]
+// );
+
+parameter_types! {
+    pub const GetStakingCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::DOT);
+    pub const GetLiquidCurrencyId: CurrencyId = CurrencyId::Token(TokenSymbol::BDOT);
+	pub StableCurrencyFixedPrice: Price = Price::saturating_from_rational(1, 1);
+}
+
+impl prices::Config for Runtime {
+	type Event = Event;
+	type Source = Oracle;
+	type GetStableCurrencyId = GetStableCurrencyId;
+	type GetStakingCurrencyId = GetStakingCurrencyId;
+	//type GetLiquidCurrencyId = GetLiquidCurrencyId; // Use Dex
+	type StableCurrencyFixedPrice = StableCurrencyFixedPrice;
+	//type LiquidStakingExchangeRateProvider = LiquidStakingExchangeRateProvider;
+	type LockOrigin = MoreThanHalfCouncil;
+	type WeightInfo = ();
+}
 
 
 /// Configure the pallet template in pallets/template.
@@ -748,7 +761,8 @@ construct_runtime!(
 		Tokens: orml_tokens::{Module, Storage, Event<T>, Config<T>},
 		Vesting: orml_vesting::{Module, Storage, Call, Event<T>, Config<T>},
 
-		//Oracle: orml_oracle::<Instance1>::{Module, Storage, Call, Config<T>, Event<T>},
+		Oracle: orml_oracle::<Instance1>::{Module, Storage, Call, Config<T>, Event<T>},
+		Prices: prices::{Module, Storage, Call, Event<T>},
 
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 	}

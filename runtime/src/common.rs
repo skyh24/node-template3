@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use codec::{Decode, Encode};
 use sp_std::convert::{Into, TryFrom, TryInto};
 use sp_runtime::{
-    generic, FixedU128,
+    generic,
     traits::{
         BlakeTwo256, Verify, IdentifyAccount,
     },
@@ -44,12 +44,6 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 pub type BlockId = generic::BlockId<Block>;
 pub type SignedBlock = generic::SignedBlock<Block>;
-
-pub type ExchangeRate = FixedU128;
-pub type Price = FixedU128;
-pub type Ratio = FixedU128;
-pub type Rate = FixedU128;
-pub type TimeStampedPrice = orml_oracle::TimestampedValue<Price, Moment>;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats

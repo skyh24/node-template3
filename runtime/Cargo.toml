@@ -1,5 +1,5 @@
 [package]
-name = "node-template-runtime"
+name = "template-runtime"
 version = "3.0.0"
 authors = ["Anonymous"]
 edition = "2018"
@@ -77,8 +77,7 @@ frame-benchmarking = { version = "3.0.0", default-features = false, optional = t
 frame-system-benchmarking = { version = "3.0.0", default-features = false, optional = true }
 hex-literal = { version = "0.3.1", optional = true }
 
-traits = { version = "3.0.0", default-features = false, package = "bp-traits", path = "../primitives/traits"}
-structs = { version = "3.0.0", default-features = false, package = "bp-structs", path = "../primitives/structs"}
+primitives = { version = "3.0.0", default-features = false, path = "../primitives" }
 
 prices = { version = "3.0.0", default-features = false, package = "pallet-prices", path = "../pallets/prices" }
 template = { version = "3.0.0", default-features = false, package = "pallet-template", path = "../pallets/template" }

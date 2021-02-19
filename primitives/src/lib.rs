@@ -4,9 +4,16 @@
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-use codec::{Decode, Encode};
-use sp_runtime::RuntimeDebug;
+use codec::{ Decode, Encode };
+use sp_runtime::{ FixedU128, RuntimeDebug };
 use sp_std::convert::{Into, TryFrom, TryInto};
+
+pub mod traits;
+
+pub type ExchangeRate = FixedU128;
+pub type Price = FixedU128;
+pub type Ratio = FixedU128;
+pub type Rate = FixedU128;
 
 #[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
