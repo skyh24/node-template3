@@ -1,7 +1,7 @@
 [package]
 authors = ['Skyh']
 edition = '2018'
-name = 'pallet-prices'
+name = 'pallet-bank'
 version = "3.0.0"
 license = "Unlicense"
 homepage = "https://substrate.dev"
@@ -12,18 +12,20 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+serde = { version = "1.0.101" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 
 frame-support = { version = "3.0.0", default-features = false }
 frame-system = { version = "3.0.0", default-features = false }
+
+sp-std = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 
-orml-traits = {path = "../../orml/traits", default-features = false}
+orml-traits = { path = "../../orml/traits", default-features = false }
 
 primitives = { version = "3.0.0", default-features = false, path = "../../primitives" }
 
 [dev-dependencies]
-serde = { version = "1.0.101" }
 sp-core = { version = "3.0.0", default-features = false }
 sp-io = { version = "3.0.0", default-features = false }
 
@@ -32,5 +34,8 @@ default = ['std']
 std = [
 	'codec/std',
 	'frame-support/std',
-	'frame-system/std'
+	'frame-system/std',
+	"orml-traits/std",
+
+	"sp-runtime/std",
 ]

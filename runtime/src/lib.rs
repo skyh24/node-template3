@@ -413,7 +413,6 @@ impl pallet_treasury::Config for Runtime {
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
 
-
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendFunds = (); // Bounties;

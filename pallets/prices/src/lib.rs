@@ -6,9 +6,9 @@ use sp_runtime::traits::{CheckedDiv, CheckedMul};
 
 use orml_traits::{DataProvider};
 use primitives::{CurrencyId, Price};
-use primitives::traits::PriceProvider;
+use primitives::prices::PriceProvider;
 
-pub use pallet::*;
+pub use mypallet::*;
 mod default_weight;
 
 #[cfg(test)]
@@ -23,7 +23,7 @@ pub trait WeightInfo {
 }
 
 #[frame_support::pallet]
-pub mod pallet {
+pub mod mypallet {
 	use super::*;
 
 	#[pallet::config]
@@ -34,22 +34,16 @@ pub mod pallet {
 		type Source: DataProvider<CurrencyId, Price>;
 
 		#[pallet::constant]
-		/// The stable currency id, it should be AUSD in Acala.
 		type GetStableCurrencyId: Get<CurrencyId>;
 
 		#[pallet::constant]
-		/// The fixed prices of stable currency, it should be 1 USD in Acala.
 		type StableCurrencyFixedPrice: Get<Price>;
 
 		#[pallet::constant]
-		/// The staking currency id, it should be DOT in Acala.
 		type GetStakingCurrencyId: Get<CurrencyId>;
 
 		// #[pallet::constant]
-		// /// The liquid currency id, it should be LDOT in Acala.
 		// type GetLiquidCurrencyId: Get<CurrencyId>;
-		// /// The provider of the exchange rate between liquid currency and
-		// /// staking currency.
 		// type LiquidStakingExchangeRateProvider: ExchangeRateProvider;
 
 		/// The origin which may lock and unlock prices feed to system.
@@ -58,10 +52,6 @@ pub mod pallet {
 		/// Weight information for the extrinsics in this module.
 		type WeightInfo: WeightInfo;
 	}
-
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
 
 	#[pallet::storage]
 	#[pallet::getter(fn locked_price)]
@@ -82,6 +72,10 @@ pub mod pallet {
 		NoneValue,
 		StorageOverflow,
 	}
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -120,7 +114,10 @@ impl<T: Config> PriceProvider<CurrencyId> for Pallet<T> {
 		}
 	}
 
-	/// get price in USD
+	/// 取出价格:
+	/// 1. 稳定资产1
+	/// 2. dex资产从流动性获取
+	/// 3. 外币资产从oracle获取
 	fn get_price(currency_id: CurrencyId) -> Option<Price> {
 		if currency_id == T::GetStableCurrencyId::get() {
 			// if is stable currency, return fixed price

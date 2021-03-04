@@ -10,8 +10,9 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
+	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, debug};
 	use frame_system::pallet_prelude::*;
+	use sp_runtime::print;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -31,7 +32,7 @@ pub mod pallet {
 	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		SomethingStored(u32, T::AccountId),
+		SomethingStored(u32),
 	}
 	
 	// Errors inform users that something went wrong.
@@ -48,13 +49,18 @@ pub mod pallet {
 	impl<T:Config> Pallet<T> {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResultWithPostInfo {
-			let who = ensure_signed(origin)?;
+			let who = ensure_root(origin)?;
 
 			// Update storage.
 			<Something<T>>::put(something);
 
+			// Print a message
+			print("Hello World");
+			// Inspecting variables
+			debug::info!("Request sent by: {:?}", who);
+
 			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
+			Self::deposit_event(Event::SomethingStored(something));
 			Ok(().into())
 		}
 

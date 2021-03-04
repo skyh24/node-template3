@@ -8,7 +8,15 @@ use codec::{ Decode, Encode };
 use sp_runtime::{ FixedU128, RuntimeDebug };
 use sp_std::convert::{Into, TryFrom, TryInto};
 
-pub mod traits;
+pub mod prices;
+pub mod auction;
+pub mod treasury;
+pub mod risk;
+
+/// Auction ID
+pub type AuctionId = u32;
+pub type Amount = i128;
+pub type Balance = u128;
 
 pub type ExchangeRate = FixedU128;
 pub type Price = FixedU128;
