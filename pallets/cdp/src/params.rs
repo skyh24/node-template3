@@ -38,3 +38,11 @@ pub enum LiquidationStrategy {
     /// Liquidation CDP's collateral by swap with DEX
     Exchange,
 }
+
+#[derive(Encode, Decode, Eq, PartialEq, Copy, Clone, RuntimeDebug, Default)]
+pub struct Position {
+    /// The amount of collateral.
+    pub collateral: Balance,
+    /// The amount of debit.
+    pub debit: Balance,
+}

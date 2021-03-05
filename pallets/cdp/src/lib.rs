@@ -2,16 +2,16 @@
 
 use frame_support::{pallet_prelude::*, transactional};
 use frame_system::pallet_prelude::*;
+use sp_std::{convert::TryInto, result::Result};
 use sp_runtime::{
-	traits::{BlakeTwo256, Bounded, Convert, Hash, Saturating, StaticLookup, Zero},
+	traits::{BlakeTwo256,AccountIdConversion, Bounded, Convert, Hash, Saturating, StaticLookup, Zero},
 	transaction_validity::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity, ValidTransaction,
 	},
-	DispatchError, DispatchResult, FixedPointNumber, RandomNumberGenerator, RuntimeDebug,
+	DispatchError, DispatchResult, FixedPointNumber, ModuleId, RandomNumberGenerator, RuntimeDebug,
 };
 
-use loans::Position;
-use orml_traits::Change;
+use orml_traits::{Change, Happened, MultiCurrency, MultiCurrencyExtended};
 use primitives::{Rate, Ratio, ExchangeRate, Price, Amount, Balance, CurrencyId};
 use primitives::risk::RiskManager;
 use primitives::prices::PriceProvider;
@@ -28,6 +28,12 @@ mod mock;
 mod tests;
 
 pub trait WeightInfo {
+	fn authorize() -> Weight;
+	fn unauthorize() -> Weight;
+	fn unauthorize_all(c: u32) -> Weight;
+	fn adjust_loan() -> Weight;
+	fn transfer_loan_from() -> Weight;
+
 	fn set_collateral_params() -> Weight;
 	fn set_global_params() -> Weight;
 	fn liquidate_by_auction() -> Weight;
@@ -35,16 +41,12 @@ pub trait WeightInfo {
 	fn settle() -> Weight;
 }
 
-pub const OFFCHAIN_WORKER_DATA: &[u8] = b"bandot/cdp/data/";
-pub const OFFCHAIN_WORKER_LOCK: &[u8] = b"bandot/cdp/lock/";
-pub const OFFCHAIN_WORKER_MAX_ITERATIONS: &[u8] = b"bandot/cdp/max-iterations/";
-pub const LOCK_DURATION: u64 = 100;
-pub const DEFAULT_MAX_ITERATIONS: u32 = 1000;
+// pub const OFFCHAIN_WORKER_DATA: &[u8] = b"bandot/cdp/data/";
+// pub const OFFCHAIN_WORKER_LOCK: &[u8] = b"bandot/cdp/lock/";
+// pub const OFFCHAIN_WORKER_MAX_ITERATIONS: &[u8] = b"bandot/cdp/max-iterations/";
+// pub const LOCK_DURATION: u64 = 100;
+// pub const DEFAULT_MAX_ITERATIONS: u32 = 1000;
 
-pub type LoansOf<T> = loans::Module<T>;
-
-// typedef to help polkadot.js disambiguate Change with different generic
-// parameters
 type ChangeOptionRate = Change<Option<Rate>>;
 type ChangeOptionRatio = Change<Option<Ratio>>;
 type ChangeBalance = Change<Balance>;
@@ -64,44 +66,60 @@ pub mod mypallet {
 	use super::*;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config  + loans::Config {
+	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+		#[pallet::constant]
+		type ModuleId: Get<ModuleId>;
+
+		type Currency: MultiCurrencyExtended<
+			Self::AccountId,
+			CurrencyId = CurrencyId,
+			Balance = Balance,
+			Amount = Amount,
+		>;
+
 		type UpdateOrigin: EnsureOrigin<Self::Origin>;
-
-		#[pallet::constant]
-		type GetStableCurrencyId: Get<CurrencyId>;
-		#[pallet::constant]
-		type CollateralCurrencyIds: Get<Vec<CurrencyId>>;
-
-		#[pallet::constant]
-		type DefaultLiquidationRatio: Get<Ratio>;
-		#[pallet::constant]
-		type DefaultDebitExchangeRate: Get<ExchangeRate>;
-
-		#[pallet::constant]
-		type DefaultLiquidationPenalty: Get<Rate>;
-		#[pallet::constant]
-		type MinimumDebitValue: Get<Balance>;
-
-		#[pallet::constant]
-		type MaxSlippageSwapWithDEX: Get<Ratio>;
-
-		type CDPTreasury: CDPTreasuryExtended<Self::AccountId, Balance = Balance, CurrencyId = CurrencyId>;
-
 		type PriceSource: PriceProvider<CurrencyId>;
-
+		type CDPTreasury: CDPTreasuryExtended<Self::AccountId, Balance = Balance, CurrencyId = CurrencyId>;
 		//type DEX: DEXManager<Self::AccountId, CurrencyId, Balance>;
 		//type EmergencyShutdown: EmergencyShutdown;
 
 		#[pallet::constant]
-		type UnsignedPriority: Get<TransactionPriority>;
+		type GetStableCurrencyId: Get<CurrencyId>; //bUSD
+		#[pallet::constant]
+		type CollateralCurrencyIds: Get<Vec<CurrencyId>>; // DOT
 
+		#[pallet::constant]
+		type DefaultLiquidationRatio: Get<Ratio>;	// LP ratio
+		#[pallet::constant]
+		type DefaultDebitExchangeRate: Get<ExchangeRate>; // exchange rate
+
+		#[pallet::constant]
+		type DefaultLiquidationPenalty: Get<Rate>; // penalty
+		#[pallet::constant]
+		type MinimumDebitValue: Get<Balance>; // min debit
+
+		#[pallet::constant]
+		type MaxSlippageSwapWithDEX: Get<Ratio>; // max slip
+
+		#[pallet::constant]
+		type UnsignedPriority: Get<TransactionPriority>;
+		type OnUpdateLoan: Happened<(Self::AccountId, CurrencyId, Amount, Balance)>;
 		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		NoAuthorization,
+		AlreadyShutdown,
+
+		DebitOverflow,
+		DebitTooLow,
+		CollateralOverflow,
+		CollateralTooLow,
+		AmountConvertFailed,
+
 		ExceedDebitValueHardCap,
 		BelowRequiredCollateralRatio,
 		BelowLiquidationRatio,
@@ -110,13 +128,20 @@ pub mod mypallet {
 		RemainDebitValueTooSmall,
 		InvalidFeedPrice,
 		NoDebitValue,
-		AlreadyShutdown,
 		MustAfterShutdown,
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(crate) fn deposit_event)]
 	pub enum Event<T: Config> {
+		Authorization(T::AccountId, T::AccountId, CurrencyId),
+		UnAuthorization(T::AccountId, T::AccountId, CurrencyId),
+		UnAuthorizationAll(T::AccountId),
+
+		PositionUpdated(T::AccountId, CurrencyId, Amount, Amount),
+		ConfiscateCollateralAndDebit(T::AccountId, CurrencyId, Balance, Balance),
+		TransferLoan(T::AccountId, T::AccountId, CurrencyId),
+
 		LiquidateUnsafeCDP(CurrencyId, T::AccountId, Balance, Balance, LiquidationStrategy),
 		SettleCDPInDebit(CurrencyId, T::AccountId),
 		StabilityFeeUpdated(CurrencyId, Option<Rate>),
@@ -128,13 +153,30 @@ pub mod mypallet {
 	}
 
 	#[pallet::storage]
+	#[pallet::getter(fn authorization)]
+	pub type Authorization<T: Config> =
+	StorageDoubleMap<_, Twox64Concat, T::AccountId, Blake2_128Concat, (CurrencyId, T::AccountId), bool, ValueQuery>;
+
+
+	#[pallet::storage]
+	#[pallet::getter(fn positions)]
+	pub type Positions<T: Config> = StorageDoubleMap<_, Twox64Concat, CurrencyId, Twox64Concat, T::AccountId, Position, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn total_positions)]
+	pub type TotalPositions<T: Config> = StorageMap<_, Twox64Concat, CurrencyId, Position, ValueQuery>;
+
+	/// exchange rate
+	#[pallet::storage]
 	#[pallet::getter(fn debit_exchange_rate)]
 	pub type DebitExchangeRate<T: Config> = StorageMap<_, Twox64Concat, CurrencyId, ExchangeRate, OptionQuery>;
 
+	/// stable fee
 	#[pallet::storage]
 	#[pallet::getter(fn global_stability_fee)]
 	pub type GlobalStabilityFee<T: Config> = StorageValue<_, Rate, ValueQuery>;
 
+	/// currency -> params
 	#[pallet::storage]
 	#[pallet::getter(fn collateral_params)]
 	pub type CollateralParams<T: Config> = StorageMap<_, Twox64Concat, CurrencyId, RiskManagementParams, ValueQuery>;
@@ -198,14 +240,83 @@ pub mod mypallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		// fn on_finalize(_now: T::BlockNumber) {
-		// 	// collect stability fee for all types of collateral
-
-		// /// submit unsigned tx to trigger liquidation or settlement.
 		// fn offchain_worker(now: T::BlockNumber) {
 	}
 
 	#[pallet::call]
 	impl<T:Config> Pallet<T> {
+		/// 修改仓位
+		#[pallet::weight(<T as Config>::WeightInfo::adjust_loan())]
+		#[transactional]
+		pub fn adjust_loan(
+			origin: OriginFor<T>,
+			currency_id: CurrencyId,
+			collateral_adjustment: Amount,
+			debit_adjustment: Amount,
+		) -> DispatchResultWithPostInfo {
+			let who = ensure_signed(origin)?;
+
+			// not allowed to adjust the debit after system shutdown
+			// if !debit_adjustment.is_zero() {
+			// 	ensure!(!T::EmergencyShutdown::is_shutdown(), Error::<T>::AlreadyShutdown);
+			// }
+			Self::adjust_position(&who, currency_id, collateral_adjustment, debit_adjustment)?;
+			Ok(().into())
+		}
+
+		#[pallet::weight(<T as Config>::WeightInfo::transfer_loan_from())]
+		#[transactional]
+		pub fn transfer_loan_from(
+			origin: OriginFor<T>,
+			currency_id: CurrencyId,
+			from: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResultWithPostInfo {
+			let to = ensure_signed(origin)?;
+			let from = T::Lookup::lookup(from)?;
+			//ensure!(!T::EmergencyShutdown::is_shutdown(), Error::<T>::AlreadyShutdown);
+			Self::check_authorization(&from, &to, currency_id)?;
+			Self::transfer_loan(&from, &to, currency_id)?;
+			Ok(().into())
+		}
+		/// 权限操作
+		#[pallet::weight(<T as Config>::WeightInfo::authorize())]
+		#[transactional]
+		pub fn authorize(
+			origin: OriginFor<T>,
+			currency_id: CurrencyId,
+			to: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResultWithPostInfo {
+			let from = ensure_signed(origin)?;
+			let to = T::Lookup::lookup(to)?;
+			<Authorization<T>>::insert(&from, (currency_id, &to), true);
+			Self::deposit_event(Event::Authorization(from, to, currency_id));
+			Ok(().into())
+		}
+
+		#[pallet::weight(<T as Config>::WeightInfo::unauthorize_all(<T as Config>::CollateralCurrencyIds::get().len() as u32))]
+		#[transactional]
+		pub fn unauthorize_all(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+			let from = ensure_signed(origin)?;
+			<Authorization<T>>::remove_prefix(&from);
+			Self::deposit_event(Event::UnAuthorizationAll(from));
+			Ok(().into())
+		}
+
+		#[pallet::weight(<T as Config>::WeightInfo::unauthorize())]
+		#[transactional]
+		pub fn unauthorize(
+			origin: OriginFor<T>,
+			currency_id: CurrencyId,
+			to: <T::Lookup as StaticLookup>::Source,
+		) -> DispatchResultWithPostInfo {
+			let from = ensure_signed(origin)?;
+			let to = T::Lookup::lookup(to)?;
+			<Authorization<T>>::remove(&from, (currency_id, &to));
+			Self::deposit_event(Event::UnAuthorization(from, to, currency_id));
+			Ok(().into())
+		}
+
+		/// 清算 在shutdown offchain执行?
 		#[pallet::weight(T::WeightInfo::liquidate_by_dex())]
 		#[transactional]
 		pub fn liquidate(
@@ -220,6 +331,7 @@ pub mod mypallet {
 			Ok(().into())
 		}
 
+		/// 解决 在shutdown offchain执行?
 		#[pallet::weight(T::WeightInfo::settle())]
 		#[transactional]
 		pub fn settle(
@@ -234,6 +346,7 @@ pub mod mypallet {
 			Ok(().into())
 		}
 
+		/// 设置global fee
 		#[pallet::weight((T::WeightInfo::set_global_params(), DispatchClass::Operational))]
 		#[transactional]
 		pub fn set_global_params(origin: OriginFor<T>, global_stability_fee: Rate) -> DispatchResultWithPostInfo {
@@ -243,6 +356,7 @@ pub mod mypallet {
 			Ok(().into())
 		}
 
+		/// 设置currencyId params
 		#[pallet::weight((T::WeightInfo::set_collateral_params(), DispatchClass::Operational))]
 		#[transactional]
 		pub fn set_collateral_params(
@@ -288,37 +402,27 @@ pub mod mypallet {
 
 	// #[pallet::validate_unsigned]
 	// impl<T: Config> ValidateUnsigned for Pallet<T> {
-	// }
 }
 
 impl<T: Config> Pallet<T> {
 	// fn submit_unsigned_liquidation_tx(currency_id: CurrencyId, who: T::AccountId) {
-	// 	let who = T::Lookup::unlookup(who);
-	// 	let call = Call::<T>::liquidate(currency_id, who.clone());
-	// 	if SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()).is_err() {
-	// 		debug::info!(
-	// 			target: "cdp-engine offchain worker",
-	// 			"submit unsigned liquidation tx for \nCDP - AccountId {:?} CurrencyId {:?} \nfailed!",
-	// 			who, currency_id,
-	// 		);
-	// 	}
-	// }
-	//
 	// fn submit_unsigned_settlement_tx(currency_id: CurrencyId, who: T::AccountId) {
-	// 	let who = T::Lookup::unlookup(who);
-	// 	let call = Call::<T>::settle(currency_id, who.clone());
-	// 	if SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()).is_err() {
-	// 		debug::info!(
-	// 			target: "cdp-engine offchain worker",
-	// 			"submit unsigned settlement tx for \nCDP - AccountId {:?} CurrencyId {:?} \nfailed!",
-	// 			who, currency_id,
-	// 		);
-	// 	}
-	// }
+}
+///params参数
+impl<T: Config> Pallet<T> {
+	/// 检查授权, 转移债务时候用
+	fn check_authorization(from: &T::AccountId, to: &T::AccountId, currency_id: CurrencyId) -> DispatchResult {
+		ensure!(
+			from == to || Self::authorization(from, (currency_id, to)),
+			Error::<T>::NoAuthorization
+		);
+		Ok(())
+	}
 
+	/// 现价抵押品率<params.清算率
 	pub fn is_cdp_unsafe(currency_id: CurrencyId, collateral: Balance, debit: Balance) -> bool {
 		let stable_currency_id = T::GetStableCurrencyId::get();
-
+		// 从source获取
 		if let Some(feed_price) = T::PriceSource::get_relative_price(currency_id, stable_currency_id) {
 			let collateral_ratio = Self::calculate_collateral_ratio(currency_id, collateral, debit, feed_price);
 			collateral_ratio < Self::get_liquidation_ratio(currency_id)
@@ -330,34 +434,29 @@ impl<T: Config> Pallet<T> {
 	pub fn maximum_total_debit_value(currency_id: CurrencyId) -> Balance {
 		Self::collateral_params(currency_id).maximum_total_debit_value
 	}
-
 	pub fn required_collateral_ratio(currency_id: CurrencyId) -> Option<Ratio> {
 		Self::collateral_params(currency_id).required_collateral_ratio
 	}
-
 	pub fn get_stability_fee(currency_id: CurrencyId) -> Rate {
 		Self::collateral_params(currency_id)
 			.stability_fee
 			.unwrap_or_default()
 			.saturating_add(Self::global_stability_fee())
 	}
-
 	pub fn get_liquidation_ratio(currency_id: CurrencyId) -> Ratio {
 		Self::collateral_params(currency_id)
 			.liquidation_ratio
 			.unwrap_or_else(T::DefaultLiquidationRatio::get)
 	}
-
 	pub fn get_liquidation_penalty(currency_id: CurrencyId) -> Rate {
 		Self::collateral_params(currency_id)
 			.liquidation_penalty
 			.unwrap_or_else(T::DefaultLiquidationPenalty::get)
 	}
-
 	pub fn get_debit_exchange_rate(currency_id: CurrencyId) -> ExchangeRate {
 		Self::debit_exchange_rate(currency_id).unwrap_or_else(T::DefaultDebitExchangeRate::get)
 	}
-
+	// exchange_rate(currncy_id)*debit
 	pub fn get_debit_value(currency_id: CurrencyId, debit_balance: Balance) -> Balance {
 		crate::DebitExchangeRateConvertor::<T>::convert((currency_id, debit_balance))
 	}
@@ -374,28 +473,12 @@ impl<T: Config> Pallet<T> {
 		Ratio::checked_from_rational(locked_collateral_value, debit_value).unwrap_or_else(Rate::max_value)
 	}
 
-	// TODO:把loan合并
-	pub fn adjust_position(
-		who: &T::AccountId,
-		currency_id: CurrencyId,
-		collateral_adjustment: Amount,
-		debit_adjustment: Amount,
-	) -> DispatchResult {
-		ensure!(
-			T::CollateralCurrencyIds::get().contains(&currency_id),
-			Error::<T>::InvalidCollateralType,
-		);
-		<LoansOf<T>>::adjust_position(who, currency_id, collateral_adjustment, debit_adjustment)?;
-		Ok(())
-	}
-
-	// 解决坏账
+	/// 解决cdp和debt
 	pub fn settle_cdp_has_debit(who: T::AccountId, currency_id: CurrencyId) -> DispatchResult {
-		let Position { collateral, debit } = <LoansOf<T>>::positions(currency_id, &who);
+		let Position { collateral, debit } = Self::positions(currency_id, &who);
 		ensure!(!debit.is_zero(), Error::<T>::NoDebitValue);
 
-		// confiscate collateral in cdp to cdp treasury
-		// and decrease CDP's debit to zero
+		// 没收所有 cdp to cdp treasury, 清零
 		let settle_price: Price = T::PriceSource::get_relative_price(T::GetStableCurrencyId::get(), currency_id)
 			.ok_or(Error::<T>::InvalidFeedPrice)?;
 		let bad_debt_value = Self::get_debit_value(currency_id, debit);
@@ -403,30 +486,29 @@ impl<T: Config> Pallet<T> {
 			sp_std::cmp::min(settle_price.saturating_mul_int(bad_debt_value), collateral);
 
 		// 没收所有抵押和债务
-		<LoansOf<T>>::confiscate_collateral_and_debit(&who, currency_id, confiscate_collateral_amount, debit)?;
+		Self::confiscate_collateral_and_debit(&who, currency_id, confiscate_collateral_amount, debit)?;
 
 		Self::deposit_event(Event::SettleCDPInDebit(currency_id, who));
 		Ok(())
 	}
 
-	// 清算CDP
+	/// 清算不安全的CDP
 	pub fn liquidate_unsafe_cdp(who: T::AccountId, currency_id: CurrencyId) -> DispatchResult {
-		let Position { collateral, debit } = <LoansOf<T>>::positions(currency_id, &who);
+		let Position { collateral, debit } = Self::positions(currency_id, &who);
 
-		// ensure the cdp is unsafe
+		// 判断是否不安全
 		ensure!(
 			Self::is_cdp_unsafe(currency_id, collateral, debit),
 			Error::<T>::MustBeUnsafe
 		);
 
-		// confiscate all collateral and debit of unsafe cdp to cdp treasury
-		<LoansOf<T>>::confiscate_collateral_and_debit(&who, currency_id, collateral, debit)?;
+		// 没收
+		Self::confiscate_collateral_and_debit(&who, currency_id, collateral, debit)?;
 
 		let bad_debt_value = Self::get_debit_value(currency_id, debit);
 		let target_stable_amount = Self::get_liquidation_penalty(currency_id).saturating_mul_acc_int(bad_debt_value);
 
-		// try use collateral to swap enough native token in DEX when the price impact
-		// is below the limit, otherwise create collateral auctions.
+		// 使用dex先进行卖出,不够就出现拍卖
 		let liquidation_strategy = (|| -> Result<LiquidationStrategy, DispatchError> {
 			// swap exact stable with DEX in limit of price impact
 			if let Ok(actual_supply_collateral) =
@@ -446,7 +528,7 @@ impl<T: Config> Pallet<T> {
 				return Ok(LiquidationStrategy::Exchange);
 			}
 
-			// create collateral auctions by cdp treasury
+			// 启动抵押品拍卖
 			<T as Config>::CDPTreasury::create_collateral_auctions(
 				currency_id,
 				collateral,
@@ -468,11 +550,237 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	// TODO:把loan合并
+	#[transactional]
+	pub fn adjust_position(
+		who: &T::AccountId,
+		currency_id: CurrencyId,
+		collateral_adjustment: Amount,
+		debit_adjustment: Amount,
+	) -> DispatchResult {
+		ensure!(
+			T::CollateralCurrencyIds::get().contains(&currency_id),
+			Error::<T>::InvalidCollateralType,
+		);
+
+		Self::update_loan(who, currency_id, collateral_adjustment, debit_adjustment)?;
+
+		let collateral_balance_adjustment = Self::balance_try_from_amount_abs(collateral_adjustment)?;
+		let debit_balance_adjustment = Self::balance_try_from_amount_abs(debit_adjustment)?;
+		let module_account = Self::account_id();
+		// 抵押品 人呢<->loan
+		if collateral_adjustment.is_positive() {
+			T::Currency::transfer(currency_id, who, &module_account, collateral_balance_adjustment)?;
+		} else if collateral_adjustment.is_negative() {
+			T::Currency::transfer(currency_id, &module_account, who, collateral_balance_adjustment)?;
+		}
+		// debit过程, treasy发或者烧
+		if debit_adjustment.is_positive() {
+			// 从riskmanager 查看debit上限
+			<Self as RiskManager<T::AccountId>>::check_debit_cap(currency_id, Self::total_positions(currency_id).debit)?;
+
+			// 发debit
+			T::CDPTreasury::issue_debit(who, crate::DebitExchangeRateConvertor::<T>::convert((currency_id, debit_balance_adjustment)), true)?;
+		} else if debit_adjustment.is_negative() {
+			T::CDPTreasury::burn_debit(who, crate::DebitExchangeRateConvertor::<T>::convert((currency_id, debit_balance_adjustment)))?;
+		}
+
+		// 检查position
+		let Position { collateral, debit } = Self::positions(currency_id, who);
+		<Self as RiskManager<T::AccountId>>::check_position_valid(currency_id, collateral, debit)?;
+
+		Self::deposit_event(Event::PositionUpdated(
+			who.clone(),
+			currency_id,
+			collateral_adjustment,
+			debit_adjustment,
+		));
+		Ok(())
+	}
+
+	#[transactional]
+	pub fn confiscate_collateral_and_debit(
+		who: &T::AccountId,
+		currency_id: CurrencyId,
+		collateral_confiscate: Balance,
+		debit_decrease: Balance,
+	) -> DispatchResult {
+		// convert balance type to amount type
+		let collateral_adjustment = Self::amount_try_from_balance(collateral_confiscate)?;
+		let debit_adjustment = Self::amount_try_from_balance(debit_decrease)?;
+
+		// 从loan->treasury
+		T::CDPTreasury::deposit_collateral(&Self::account_id(), currency_id, collateral_confiscate)?;
+
+		// treasury增发坏账
+		let bad_debt_value = <Self as RiskManager<T::AccountId>>::get_bad_debt_value(currency_id, debit_decrease);
+		T::CDPTreasury::on_system_debit(bad_debt_value)?;
+
+		// 减少who的抵押品和debit
+		Self::update_loan(
+			&who,
+			currency_id,
+			collateral_adjustment.saturating_neg(),
+			debit_adjustment.saturating_neg(),
+		)?;
+
+		Self::deposit_event(Event::ConfiscateCollateralAndDebit(
+			who.clone(),
+			currency_id,
+			collateral_confiscate,
+			debit_decrease,
+		));
+		Ok(())
+	}
+
+	/// 转移loan
+	pub fn transfer_loan(from: &T::AccountId, to: &T::AccountId, currency_id: CurrencyId) -> DispatchResult {
+		// get `from` position data
+		let Position { collateral, debit } = Self::positions(currency_id, from);
+
+		let Position {
+			collateral: to_collateral,
+			debit: to_debit,
+		} = Self::positions(currency_id, to);
+
+		let new_to_collateral_balance = to_collateral
+			.checked_add(collateral)
+			.expect("existing collateral balance cannot overflow; qed");
+		let new_to_debit_balance = to_debit
+			.checked_add(debit)
+			.expect("existing debit balance cannot overflow; qed");
+
+		// 查看仓位满足
+		<Self as RiskManager<T::AccountId>>::check_position_valid(currency_id, new_to_collateral_balance, new_to_debit_balance)?;
+
+		// balance -> amount
+		let collateral_adjustment = Self::amount_try_from_balance(collateral)?;
+		let debit_adjustment = Self::amount_try_from_balance(debit)?;
+
+		// 减少原来的 增加to的
+		Self::update_loan(
+			from,
+			currency_id,
+			collateral_adjustment.saturating_neg(),
+			debit_adjustment.saturating_neg(),
+		)?;
+		Self::update_loan(to, currency_id, collateral_adjustment, debit_adjustment)?;
+
+		Self::deposit_event(Event::TransferLoan(from.clone(), to.clone(), currency_id));
+		Ok(())
+	}
+
+	fn update_loan(
+		who: &T::AccountId,
+		currency_id: CurrencyId,
+		collateral_adjustment: Amount,
+		debit_adjustment: Amount,
+	) -> DispatchResult {
+		let collateral_balance = Self::balance_try_from_amount_abs(collateral_adjustment)?;
+		let debit_balance = Self::balance_try_from_amount_abs(debit_adjustment)?;
+		// 修改who, currency_id仓位
+		<Positions<T>>::try_mutate_exists(currency_id, who, |may_be_position| -> DispatchResult {
+			let mut p = may_be_position.take().unwrap_or_default();
+			let new_collateral = if collateral_adjustment.is_positive() {
+				p.collateral
+					.checked_add(collateral_balance)
+					.ok_or(Error::<T>::CollateralOverflow)
+			} else {
+				p.collateral
+					.checked_sub(collateral_balance)
+					.ok_or(Error::<T>::CollateralTooLow)
+			}?;
+			let new_debit = if debit_adjustment.is_positive() {
+				p.debit.checked_add(debit_balance).ok_or(Error::<T>::DebitOverflow)
+			} else {
+				p.debit.checked_sub(debit_balance).ok_or(Error::<T>::DebitTooLow)
+			}?;
+
+			// increase account ref if new position
+			if p.collateral.is_zero() && p.debit.is_zero() {
+				if frame_system::Module::<T>::inc_consumers(who).is_err() {
+					// No providers for the locks. This is impossible under normal circumstances
+					// since the funds that are under the lock will themselves be stored in the
+					// account and therefore will need a reference.
+					frame_support::debug::warn!(
+						"Warning: Attempt to introduce lock consumer reference, yet no providers. \
+						This is unexpected but should be safe."
+					);
+				}
+			}
+
+			p.collateral = new_collateral;
+
+			// 触发回调
+			T::OnUpdateLoan::happened(&(who.clone(), currency_id, debit_adjustment, p.debit));
+			p.debit = new_debit;
+
+			if p.collateral.is_zero() && p.debit.is_zero() {
+				// decrease account ref if zero position
+				frame_system::Module::<T>::dec_consumers(who);
+
+				// remove position storage if zero position
+				*may_be_position = None;
+			} else {
+				*may_be_position = Some(p);
+			}
+
+			Ok(())
+		})?;
+		// 修改TotalPositions
+		TotalPositions::<T>::try_mutate(currency_id, |total_positions| -> DispatchResult {
+			total_positions.collateral = if collateral_adjustment.is_positive() {
+				total_positions
+					.collateral
+					.checked_add(collateral_balance)
+					.ok_or(Error::<T>::CollateralOverflow)
+			} else {
+				total_positions
+					.collateral
+					.checked_sub(collateral_balance)
+					.ok_or(Error::<T>::CollateralTooLow)
+			}?;
+
+			total_positions.debit = if debit_adjustment.is_positive() {
+				total_positions
+					.debit
+					.checked_add(debit_balance)
+					.ok_or(Error::<T>::DebitOverflow)
+			} else {
+				total_positions
+					.debit
+					.checked_sub(debit_balance)
+					.ok_or(Error::<T>::DebitTooLow)
+			}?;
+
+			Ok(())
+		})
+	}
 
 	// fn _offchain_worker() -> Result<(), OffchainErr> {
 }
 
-impl<T: Config> RiskManager<T::AccountId, CurrencyId, Balance, Balance> for Pallet<T> {
+impl<T: Config> Pallet<T> {
+	pub fn account_id() -> T::AccountId {
+		T::ModuleId::get().into_account()
+	}
+
+	/// Convert `Balance` to `Amount`.
+	fn amount_try_from_balance(b: Balance) -> Result<Amount, Error<T>> {
+		TryInto::<Amount>::try_into(b).map_err(|_| Error::<T>::AmountConvertFailed)
+	}
+
+	/// Convert the absolute value of `Amount` to `Balance`.
+	fn balance_try_from_amount_abs(a: Amount) -> Result<Balance, Error<T>> {
+		TryInto::<Balance>::try_into(a.saturating_abs()).map_err(|_| Error::<T>::AmountConvertFailed)
+	}
+}
+
+impl<T: Config> RiskManager<T::AccountId> for Pallet<T> {
+	type CurrencyId = CurrencyId;
+	type Balance = Balance;
+	type DebitBalance = Balance;
+
 	fn get_bad_debt_value(currency_id: CurrencyId, debit_balance: Balance) -> Balance {
 		Self::get_debit_value(currency_id, debit_balance)
 	}
@@ -489,7 +797,7 @@ impl<T: Config> RiskManager<T::AccountId, CurrencyId, Balance, Balance> for Pall
 			let collateral_ratio =
 				Self::calculate_collateral_ratio(currency_id, collateral_balance, debit_balance, feed_price);
 
-			// check the required collateral ratio
+			// 抵押物/debit >= required_collateral_ratio 和 get_liquidation_ratio
 			if let Some(required_collateral_ratio) = Self::required_collateral_ratio(currency_id) {
 				ensure!(
 					collateral_ratio >= required_collateral_ratio,

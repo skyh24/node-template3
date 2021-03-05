@@ -3914,7 +3914,6 @@ dependencies = [
  "frame-system",
  "orml-tokens",
  "orml-traits",
- "pallet-loan",
  "parity-scale-codec",
  "primitives",
  "serde",
@@ -3986,23 +3985,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-keyring",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-loan"
-version = "3.0.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "orml-tokens",
- "orml-traits",
- "parity-scale-codec",
- "primitives",
- "serde",
- "sp-core",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]

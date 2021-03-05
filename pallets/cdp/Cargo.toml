@@ -23,7 +23,6 @@ sp-runtime = { version = "3.0.0", default-features = false }
 orml-traits = { path = "../../orml/traits", default-features = false }
 orml-tokens = { path = "../../orml/tokens", default-features = false }
 
-loans = { package = "pallet-loan", path = "../loan", default-features = false }
 primitives = { path = "../../primitives", default-features = false }
 
 [dev-dependencies]
@@ -41,7 +40,6 @@ std = [
 	"sp-std/std",
 	"sp-runtime/std",
 
-	"loans/std",
 	"orml-traits/std",
 	"orml-tokens/std",
 	"primitives/std",

@@ -38,10 +38,10 @@ pub mod pallet {
 
 		type Currency: MultiCurrencyExtended<Self::AccountId, CurrencyId = CurrencyId, Balance = Balance>;
 
+		type AuctionManager: AuctionManager<Self::AccountId, CurrencyId = CurrencyId, Balance = Balance>;
+
 		#[pallet::constant]
 		type GetStableCurrencyId: Get<CurrencyId>;
-
-		type AuctionManager: AuctionManager<Self::AccountId, CurrencyId = CurrencyId, Balance = Balance>;
 
 		#[pallet::constant]
 		type MaxAuctionsCount: Get<u32>;
@@ -89,6 +89,17 @@ pub mod pallet {
 				.for_each(|(currency_id, size)| {
 					CollateralAuctionMaximumSize::<T>::insert(currency_id, size);
 				});
+		}
+	}
+
+	#[cfg(feature = "std")]
+	impl GenesisConfig {
+		pub fn build_storage<T: Config>(&self) -> Result<sp_runtime::Storage, String> {
+			<Self as GenesisBuild<T>>::build_storage(self)
+		}
+
+		pub fn assimilate_storage<T: Config>(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
+			<Self as GenesisBuild<T>>::assimilate_storage(self, storage)
 		}
 	}
 
@@ -184,22 +195,23 @@ impl<T: Config> Pallet<T> {
 		T::ModuleId::get().into_account()
 	}
 
-	/// Get current total surplus of system.
+	/// 剩余池有用户的稳定资产
 	pub fn surplus_pool() -> Balance {
 		T::Currency::free_balance(T::GetStableCurrencyId::get(), &Self::account_id())
 	}
 
-	/// Get total collateral amount of cdp treasury module.
+	/// 所有抵押品
 	pub fn total_collaterals(currency_id: CurrencyId) -> Balance {
 		T::Currency::free_balance(currency_id, &Self::account_id())
 	}
 
-	/// Get collateral amount not in auction
+	/// 不在拍卖的抵押品
 	pub fn total_collaterals_not_in_auction(currency_id: CurrencyId) -> Balance {
 		T::Currency::free_balance(currency_id, &Self::account_id())
 			.saturating_sub(T::AuctionManager::get_total_collateral_in_auction(currency_id))
 	}
 
+	/// 解决debit和suplus价值偏差,从treasure消除
 	fn offset_surplus_and_debit() {
 		let offset_amount = sp_std::cmp::min(Self::debit_pool(), Self::surplus_pool());
 
@@ -220,34 +232,33 @@ impl<T: Config> CDPTreasury<T::AccountId> for Pallet<T> {
 	type Balance = Balance;
 	type CurrencyId = CurrencyId;
 
-	fn get_surplus_pool() -> Self::Balance {
-		Self::surplus_pool()
-	}
-
+	// get方法
 	fn get_debit_pool() -> Self::Balance {
 		Self::debit_pool()
 	}
-
+	fn get_surplus_pool() -> Self::Balance {
+		Self::surplus_pool()
+	}
 	fn get_total_collaterals(id: Self::CurrencyId) -> Self::Balance {
 		Self::total_collaterals(id)
 	}
-
+	// debit占比
 	fn get_debit_proportion(amount: Self::Balance) -> Ratio {
 		let stable_total_supply = T::Currency::total_issuance(T::GetStableCurrencyId::get());
 		Ratio::checked_from_rational(amount, stable_total_supply).unwrap_or_default()
 	}
-
+	/// 增加DebitPool
 	fn on_system_debit(amount: Self::Balance) -> DispatchResult {
 		DebitPool::<T>::try_mutate(|debit_pool| -> DispatchResult {
 			*debit_pool = debit_pool.checked_add(amount).ok_or(Error::<T>::DebitPoolOverflow)?;
 			Ok(())
 		})
 	}
-
+	/// 增发debit到treasury
 	fn on_system_surplus(amount: Self::Balance) -> DispatchResult {
 		Self::issue_debit(&Self::account_id(), amount, true)
 	}
-
+	/// 发stablecoin
 	fn issue_debit(who: &T::AccountId, debit: Self::Balance, backed: bool) -> DispatchResult {
 		// increase system debit if the debit is unbacked
 		if !backed {
@@ -257,27 +268,26 @@ impl<T: Config> CDPTreasury<T::AccountId> for Pallet<T> {
 
 		Ok(())
 	}
-
+	/// 消除stablecoin
 	fn burn_debit(who: &T::AccountId, debit: Self::Balance) -> DispatchResult {
 		T::Currency::withdraw(T::GetStableCurrencyId::get(), who, debit)
 	}
-
+	/// 从个人到treasury
 	fn deposit_surplus(from: &T::AccountId, surplus: Self::Balance) -> DispatchResult {
 		T::Currency::transfer(T::GetStableCurrencyId::get(), from, &Self::account_id(), surplus)
 	}
-
+	/// 转移抵押品, 罚款loan->treasury
 	fn deposit_collateral(from: &T::AccountId, currency_id: Self::CurrencyId, amount: Self::Balance) -> DispatchResult {
 		T::Currency::transfer(currency_id, from, &Self::account_id(), amount)
 	}
-
+	/// 抵押品转出到账户里
 	fn withdraw_collateral(to: &T::AccountId, currency_id: Self::CurrencyId, amount: Self::Balance) -> DispatchResult {
 		T::Currency::transfer(currency_id, &Self::account_id(), to, amount)
 	}
 }
 
 impl<T: Config> CDPTreasuryExtended<T::AccountId> for Pallet<T> {
-	/// Swap exact amount of collateral in auction to stable,
-	/// return actual target stable amount
+
 	fn swap_exact_collateral_in_auction_to_stable(
 		currency_id: CurrencyId,
 		supply_amount: Balance,
@@ -301,8 +311,7 @@ impl<T: Config> CDPTreasuryExtended<T::AccountId> for Pallet<T> {
 		// )
 	}
 
-	/// swap collateral which not in auction to get exact stable,
-	/// return actual supply collateral amount
+
 	fn swap_collateral_not_in_auction_with_exact_stable(
 		currency_id: CurrencyId,
 		target_amount: Balance,
@@ -326,6 +335,7 @@ impl<T: Config> CDPTreasuryExtended<T::AccountId> for Pallet<T> {
 		// )
 	}
 
+	/// 启动拍卖
 	fn create_collateral_auctions(
 		currency_id: CurrencyId,
 		amount: Balance,
@@ -388,19 +398,4 @@ impl<T: Config> CDPTreasuryExtended<T::AccountId> for Pallet<T> {
 	}
 }
 
-#[cfg(feature = "std")]
-impl GenesisConfig {
-	/// Direct implementation of `GenesisBuild::build_storage`.
-	///
-	/// Kept in order not to break dependency.
-	pub fn build_storage<T: Config>(&self) -> Result<sp_runtime::Storage, String> {
-		<Self as GenesisBuild<T>>::build_storage(self)
-	}
 
-	/// Direct implementation of `GenesisBuild::assimilate_storage`.
-	///
-	/// Kept in order not to break dependency.
-	pub fn assimilate_storage<T: Config>(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-		<Self as GenesisBuild<T>>::assimilate_storage(self, storage)
-	}
-}
