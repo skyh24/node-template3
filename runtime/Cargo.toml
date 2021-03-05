@@ -66,6 +66,7 @@ orml-tokens = {path = "../orml/tokens", default-features = false}
 orml-currencies = {path = "../orml/currencies", default-features = false}
 orml-vesting = {path = "../orml/vesting", default-features = false}
 orml-oracle = {path = "../orml/oracle", default-features = false}
+orml-auction = {path = "../orml/auction", default-features = false}
 orml-traits = {path = "../orml/traits", default-features = false}
 
 # Used for the node template's RPCs
@@ -80,6 +81,9 @@ hex-literal = { version = "0.3.1", optional = true }
 primitives = { version = "3.0.0", default-features = false, path = "../primitives" }
 
 prices = { version = "3.0.0", default-features = false, package = "pallet-prices", path = "../pallets/prices" }
+auction = { version = "3.0.0", default-features = false, package = "pallet-auction", path = "../pallets/auction" }
+bank = { version = "3.0.0", default-features = false, package = "pallet-bank", path = "../pallets/bank" }
+cdp = { version = "3.0.0", default-features = false, package = "pallet-cdp", path = "../pallets/cdp" }
 template = { version = "3.0.0", default-features = false, package = "pallet-template", path = "../pallets/template" }
 
 [build-dependencies]
@@ -88,9 +92,13 @@ substrate-wasm-builder = { version = "4.0.0" }
 [features]
 default = ["std"]
 std = [
+	"serde",
 	"codec/std",
 	"frame-executive/std",
 	"frame-support/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
+
 	"pallet-balances/std",
 	"pallet-babe/std",
 	"pallet-grandpa/std",
@@ -113,7 +121,13 @@ std = [
 	"pallet-bounties/std",
 	"pallet-tips/std",
 	"pallet-utility/std",
-	"serde",
+
+	"orml-tokens/std",
+	"orml-currencies/std",
+	"orml-auction/std",
+	"orml-traits/std",
+	"orml-vesting/std",
+
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-babe/std",
@@ -126,8 +140,6 @@ std = [
 	"sp-std/std",
 	"sp-transaction-pool/std",
 	"sp-version/std",
-	"frame-system/std",
-	"frame-system-rpc-runtime-api/std",
 	"template/std",
 ]
 runtime-benchmarks = [

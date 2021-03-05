@@ -2,7 +2,7 @@
 
 use frame_support::{pallet_prelude::*, transactional};
 use frame_system::pallet_prelude::*;
-use sp_std::{convert::TryInto, result::Result};
+use sp_std::{prelude::*, convert::TryInto, result::Result};
 use sp_runtime::{
 	traits::{BlakeTwo256,AccountIdConversion, Bounded, Convert, Hash, Saturating, StaticLookup, Zero},
 	transaction_validity::{
@@ -21,6 +21,7 @@ pub mod params;
 pub use params::*;
 
 pub use mypallet::*;
+mod default_weight;
 
 #[cfg(test)]
 mod mock;
@@ -103,8 +104,8 @@ pub mod mypallet {
 		#[pallet::constant]
 		type MaxSlippageSwapWithDEX: Get<Ratio>; // max slip
 
-		#[pallet::constant]
-		type UnsignedPriority: Get<TransactionPriority>;
+		// #[pallet::constant]
+		// type UnsignedPriority: Get<TransactionPriority>;
 		type OnUpdateLoan: Happened<(Self::AccountId, CurrencyId, Amount, Balance)>;
 		type WeightInfo: WeightInfo;
 	}

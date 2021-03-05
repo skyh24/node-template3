@@ -37,7 +37,7 @@ use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use static_assertions::const_assert;
-use primitives::{TokenSymbol, CurrencyId, Price};
+use primitives::{Rate, Ratio, ExchangeRate, TokenSymbol, CurrencyId, Price};
 
 
 // A few exports that help ease life for downstream crates.
@@ -109,11 +109,16 @@ impl_opaque_keys! {
 // Module accounts of runtime
 parameter_types! {
 	pub const TreasuryModuleId: ModuleId = ModuleId(*b"bdt/trsy");
+	pub const BankModuleId: ModuleId = ModuleId(*b"bdt/bank");
+	pub const CDPModuleId: ModuleId = ModuleId(*b"bdt/cdps");
+
 }
 
 pub fn get_all_module_accounts() -> Vec<AccountId> {
 	vec![
 		TreasuryModuleId::get().into_account(),
+		BankModuleId::get().into_account(),
+		CDPModuleId::get().into_account(),
 	]
 }
 
@@ -710,6 +715,85 @@ impl prices::Config for Runtime {
 	type WeightInfo = ();
 }
 
+impl orml_auction::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type AuctionId = AuctionId;
+	type Handler = AuctionManager;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub MinimumIncrementSize: Rate = Rate::saturating_from_rational(2, 100);
+	pub const AuctionTimeToClose: BlockNumber = 15 * MINUTES;
+	pub const AuctionDurationSoftCap: BlockNumber = 2 * HOURS;
+}
+
+impl auction::Config for Runtime {
+	type Event = Event;
+	type Auction = Auction;
+	type CDPTreasury = Bank;
+	type Currency = Currencies;
+	type PriceSource = Prices;
+	type MinimumIncrementSize = MinimumIncrementSize;
+	type AuctionTimeToClose = AuctionTimeToClose;
+	type AuctionDurationSoftCap = AuctionDurationSoftCap;
+	type GetStableCurrencyId = GetStableCurrencyId;
+	type GetNativeCurrencyId = GetNativeCurrencyId;
+
+	// type UnsignedPriority = runtime_common::AuctionManagerUnsignedPriority;
+	// type EmergencyShutdown = EmergencyShutdown;
+	// type DEX = Dex;
+
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const MaxAuctionsCount: u32 = 100;
+}
+
+impl bank::Config for Runtime {
+	type Event = Event;
+	type ModuleId = BankModuleId;
+	type Currency = Currencies;
+	type GetStableCurrencyId = GetStableCurrencyId;
+	type AuctionManager = AuctionManager;
+	type MaxAuctionsCount = MaxAuctionsCount;
+	// type DEX = Dex;
+	type UpdateOrigin = MoreThanHalfCouncil;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub CollateralCurrencyIds: Vec<CurrencyId> = vec![CurrencyId::Token(TokenSymbol::DOT), CurrencyId::Token(TokenSymbol::DOT)];
+	pub DefaultLiquidationRatio: Ratio = Ratio::saturating_from_rational(110, 100);
+	pub DefaultDebitExchangeRate: ExchangeRate = ExchangeRate::saturating_from_rational(1, 10);
+	pub DefaultLiquidationPenalty: Rate = Rate::saturating_from_rational(5, 100);
+	pub const MinimumDebitValue: Balance = DOLLARS;
+	pub MaxSlippageSwapWithDEX: Ratio = Ratio::saturating_from_rational(5, 100);
+}
+
+impl cdp::Config for Runtime {
+	type Event = Event;
+	type ModuleId = CDPModuleId;
+	type PriceSource = Prices;
+	type Currency = Currencies;
+	type CDPTreasury = Bank;
+	type UpdateOrigin = MoreThanHalfCouncil;
+	type GetStableCurrencyId = GetStableCurrencyId;
+	type CollateralCurrencyIds = CollateralCurrencyIds;
+	type DefaultLiquidationRatio = DefaultLiquidationRatio;
+	type DefaultDebitExchangeRate = DefaultDebitExchangeRate;
+	type DefaultLiquidationPenalty = DefaultLiquidationPenalty;
+	type MinimumDebitValue = MinimumDebitValue;
+	type MaxSlippageSwapWithDEX = MaxSlippageSwapWithDEX;
+	type OnUpdateLoan = ();
+	// type UnsignedPriority = runtime_common::CdpEngineUnsignedPriority;
+	// type EmergencyShutdown = EmergencyShutdown;
+	// type DEX = Dex;
+	type WeightInfo = ();
+}
+
 
 /// Configure the pallet template in pallets/template.
 impl template::Config for Runtime {
@@ -762,6 +846,11 @@ construct_runtime!(
 
 		Oracle: orml_oracle::<Instance1>::{Module, Storage, Call, Config<T>, Event<T>},
 		Prices: prices::{Module, Storage, Call, Event<T>},
+
+		Auction: orml_auction::{Module, Storage, Call, Event<T>},
+		AuctionManager: auction::{Module, Storage, Call, Event<T>}, //, ValidateUnsigned},
+		Bank: bank::{Module, Storage, Call, Config, Event<T>},
+		Cdp: cdp::{Module, Storage, Call, Event<T>, Config},//, ValidateUnsigned},
 
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 	}

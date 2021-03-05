@@ -7,10 +7,11 @@ use template_runtime::{
 	IndicesConfig, SessionConfig, StakingConfig,
 	CouncilConfig, TechnicalCommitteeConfig,
 	TokensConfig, VestingConfig, OracleConfig,
+	BankConfig, CdpConfig
 };
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
-use sp_runtime::{Perbill};
+use sp_runtime::{FixedPointNumber, FixedU128, Perbill};
 use sp_runtime::traits::{Verify, IdentifyAccount};
 use sc_service::ChainType;
 use primitives::{TokenSymbol, CurrencyId};
@@ -213,6 +214,32 @@ fn testnet_genesis(
 		orml_oracle_Instance1: Some(OracleConfig {
 			members: vec![root_key.clone()].into(), // initialized by OperatorMembership
 			phantom: Default::default(),
+		}),
+		bank: Some(BankConfig {
+			collateral_auction_maximum_size: vec![
+				(CurrencyId::Token(TokenSymbol::DOT), DOLLARS), // (currency_id, max size of a collateral auction)
+			],
+		}),
+		cdp: Some(CdpConfig {
+			collaterals_params: vec![
+				(
+					CurrencyId::Token(TokenSymbol::DOT),
+					Some(FixedU128::zero()),                             // stability fee for this collateral
+					Some(FixedU128::saturating_from_rational(105, 100)), // liquidation ratio
+					Some(FixedU128::saturating_from_rational(3, 100)),   // liquidation penalty rate
+					Some(FixedU128::saturating_from_rational(110, 100)), // required liquidation ratio
+					10_000_000 * DOLLARS,                           // maximum debit value in aUSD (cap)
+				),
+				(
+					CurrencyId::Token(TokenSymbol::BDOT),
+					Some(FixedU128::zero()),
+					Some(FixedU128::saturating_from_rational(120, 100)),
+					Some(FixedU128::saturating_from_rational(10, 100)),
+					Some(FixedU128::saturating_from_rational(130, 100)),
+					10_000_000 * DOLLARS,
+				),
+			],
+			global_stability_fee: FixedU128::saturating_from_rational(618_850_393, 100_000_000_000_000_000_u128), /* 5% APR */
 		}),
 	}
 }

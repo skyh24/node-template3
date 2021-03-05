@@ -48,6 +48,8 @@ pub mod mypallet {
 		type Auction: Auction<Self::AccountId, Self::BlockNumber, AuctionId = AuctionId, Balance = Balance>;
 		type CDPTreasury: CDPTreasuryExtended<Self::AccountId, Balance = Balance, CurrencyId = CurrencyId>;
 		type PriceSource: PriceProvider<CurrencyId>;
+		// type DEX: DEXManager<Self::AccountId, CurrencyId, Balance>;
+		// type EmergencyShutdown: EmergencyShutdown;
 
 		#[pallet::constant]
 		type AuctionTimeToClose: Get<Self::BlockNumber>;
@@ -61,12 +63,8 @@ pub mod mypallet {
 		#[pallet::constant]
 		type GetNativeCurrencyId: Get<CurrencyId>;
 
-		// type DEX: DEXManager<Self::AccountId, CurrencyId, Balance>;
-		// type EmergencyShutdown: EmergencyShutdown;
-
 		// #[pallet::constant]
 		// type UnsignedPriority: Get<TransactionPriority>;
-
 		type WeightInfo: WeightInfo;
 
 	}

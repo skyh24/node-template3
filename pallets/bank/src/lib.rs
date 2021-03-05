@@ -12,7 +12,8 @@ use primitives::Ratio;
 use primitives::auction::AuctionManager;
 use primitives::treasury::{CDPTreasury, CDPTreasuryExtended};
 
-pub use pallet::*;
+pub use mypallet::*;
+mod default_weight;
 
 #[cfg(test)]
 mod mock;
@@ -27,7 +28,7 @@ pub trait WeightInfo {
 }
 
 #[frame_support::pallet]
-pub mod pallet {
+pub mod mypallet {
 	use super::*;
 
 	#[pallet::config]
@@ -50,6 +51,7 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type ModuleId: Get<ModuleId>;
+
 		type WeightInfo: WeightInfo;
 	}
 
